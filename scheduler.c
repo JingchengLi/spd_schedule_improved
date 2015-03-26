@@ -13,25 +13,18 @@
 #define _GNU_SOURCE
 #endif
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/time.h>
-#include <unistd.h>
-#include <string.h>
-#include <pthread.h>
-#include <syslog.h>
-
 #include "scheduler.h"
 #include "linkedlist.h"
 #include "times.h"
 
-#define spd_log(priority, fmt, ...) ({ \
 #ifdef DEBUG_SCHEDULER
-    printf("[file: %s line:%d func:%s]" fmt, __FILE__, __LINE__, __PRETTY_FUNCTION__, ##__VA_ARGS__); \
+#define spd_log(priority, fmt, ...) \
+    printf("[file: %s line:%d func:%s]" fmt, __FILE__, __LINE__, __PRETTY_FUNCTION__, ##__VA_ARGS__);
 #else
-    syslog((priority),"[file: %s line:%d func:%s]" fmt, __FILE__, __LINE__, __PRETTY_FUNCTION__, ##__VA_ARGS__); \
+#define spd_log(priority, fmt, ...) \
+    syslog((priority),"[file: %s line:%d func:%s]" fmt, __FILE__, __LINE__, __PRETTY_FUNCTION__, ##__VA_ARGS__);
 #endif
-    })   
+       
 
 #define SAFE_FREE(buf) if (buf) {\
         free(buf);\
@@ -257,8 +250,11 @@ static void add_scheduler(struct scheduler_context *c, struct scheduler *s)
 }
 
 /*! \brief
- * given the last event *tv and the offset in milliseconds 'when',
- * computes the next value,
+ * computes the next time to schedule, 'tv' is the base time (usually is the time the last 
+ * event happended.) 'when' is the offset in milliseconds. if tv is 0, use the current 
+ * time as default.
+ *
+ * sched_settime always return 0 now.
  */
 static int sched_settime(struct timeval *tv, int when)
 {
@@ -290,8 +286,8 @@ int spd_sched_add_flag(struct scheduler_context * con, int when, spd_scheduler_c
         return -1;
     }
     spd_log(LOG_DEBUG,"Enter spd_sched_add \n");
-    if(!flag && !when) {
-        spd_log(LOG_DEBUG," scheduled event in 0 ms ? \n");
+    if(!flag && (!when || (when < 0))) {
+        spd_log(LOG_DEBUG," if flag is 0, rescheduled can't be 0 or smaller than 0 ! \n");
         return -1;
     }
 
@@ -430,6 +426,7 @@ int spd_sched_runall(struct scheduler_context * c)
             break;
         }
 
+        /* remove this task from list. */
         cur = SPD_LIST_REMOVE_HEAD(&c->schedulerq, list);
         c->schedsnt--;
 
@@ -459,13 +456,23 @@ int spd_sched_runall(struct scheduler_context * c)
             /*
              * If they return non-zero, we should schedule them to be
              * run again.
+             *
+             * when cur->flag is true, use the return value as the offset time to reschedule.
+             * otherwise, use cur->reschedule as the offset.
+             *
+             * sched_settime always return 0 now.
              */
-             if(sched_settime(&cur->when, cur->flag ? res : cur->reschedule)) {
-                scheduler_release(c,cur);
-             } else {
-                add_scheduler(c, cur);
-                         }
+            if(sched_settime(&cur->when, cur->flag ? res : cur->reschedule)) {
+               scheduler_release(c,cur);
+            } else {
+               /* re-add this task to task list. */
+               add_scheduler(c, cur);
+            }
         } else {
+            /*
+             * If the task callback return 0, we think this task was finished and should not 
+             * reschedule it. 
+             */
             scheduler_release(c, cur);
         }
         pthread_mutex_unlock(&c->lock);

@@ -13,10 +13,17 @@
 #ifndef _SPIDER_SCHEDULER_H
 #define _SPIDR_SCHEDULER_H
 
-
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
 #endif
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/time.h>
+#include <unistd.h>
+#include <string.h>
+#include <pthread.h>
+#include <syslog.h>
 
 /*! \brief Max num of schedule structs
  * \note The max number of schedule structs to keep around
@@ -68,8 +75,9 @@ int spd_sched_add(struct scheduler_context *con, int when, spd_scheduler_cb call
  * \param when how many milliseconds to wait for event to occur
  * \param callback function to call when the amount of time expires
  * \param data data to pass to the callback
- * \param variable If true, the result value of callback function will be
+ * \param flag If true, the result value of callback function will be
  *       used for rescheduling
+ * \param retry_times the max retry times, negative value will always retry.
  * Schedule an event to take place at some point in the future.  Callback
  * will be called with data as the argument, when milliseconds into the
  * future (approximately)
