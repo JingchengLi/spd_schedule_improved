@@ -24,6 +24,13 @@ extern "C" {
 #include <string.h>
 #include <pthread.h>
 #include <syslog.h>
+#include <stdarg.h>
+
+#define MALLOC_DEBUG 1
+
+#ifdef MALLOC_DEBUG
+#include "malloc.h"
+#endif
 
 /*! \brief Max num of schedule structs
  * \note The max number of schedule structs to keep around

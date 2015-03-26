@@ -26,9 +26,15 @@
 #endif
        
 
+#ifdef MALLOC_DEBUG
+#define SAFE_FREE(buf) if (buf) {\
+        LOG_FREE(buf);\
+        buf = NULL;}
+#else
 #define SAFE_FREE(buf) if (buf) {\
         free(buf);\
-        buf = NULL;}\
+        buf = NULL;}
+#endif
        
 #define ONE_MILLION    1000000
 
@@ -82,7 +88,11 @@ struct scheduler_context *spd_sched_context_create(void)
 {
     struct scheduler_context *sc;
 
+#ifdef MALLOC_DEBUG
+    if(!(sc = LOG_CALLOC(1, sizeof(*sc)))) {
+#else
     if(!(sc = calloc(1, sizeof(*sc)))) {
+#endif
         return NULL;
     }
 
@@ -135,7 +145,11 @@ static struct scheduler *sched_alloc(struct scheduler_context *con)
                 return tmp;
         }
 #endif 
+#ifdef MALLOC_DEBUG
+    if(!(tmp = LOG_CALLOC(1, sizeof(*tmp))))
+#else
     if(!(tmp = calloc(1, sizeof(*tmp))))
+#endif
         return NULL;
 
     return tmp;
